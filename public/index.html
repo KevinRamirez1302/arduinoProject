@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Arduino Serial Bridge — Dashboard</title>
+  <meta name="description" content="Dashboard en tiempo real para visualizar datos del Arduino a través del puente Node.js + SerialPort + Socket.io" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ── Header ──────────────────────────────────────────── -->
+  <header class="header">
+    <div class="header-brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Arduino Bridge</h1>
+        <span class="brand-subtitle">Node.js · SerialPort · Socket.io</span>
+      </div>
+    </div>
+    <div class="header-status">
+      <div id="status-dot" class="status-dot disconnected"></div>
+      <span id="status-text">Desconectado</span>
+    </div>
+  </header>
+
+  <!-- ── Main Layout ──────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- Columna izquierda: Conexión + Consola -->
+    <aside class="sidebar">
+
+      <!-- Panel de Conexión -->
+      <section class="card" id="connection-panel">
+        <h2 class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+          Conexión Serial
+        </h2>
+
+        <label class="field-label" for="port-select">Puerto Serial</label>
+        <div class="port-row">
+          <select id="port-select" class="select">
+            <option value="">Seleccionar puerto...</option>
+          </select>
+          <button id="btn-refresh" class="btn btn-ghost" title="Actualizar puertos">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          </button>
+        </div>
+
+        <label class="field-label" for="baud-select">Velocidad (Baudios)</label>
+        <select id="baud-select" class="select">
+          <option value="9600" selected>9600</option>
+          <option value="19200">19200</option>
+          <option value="38400">38400</option>
+          <option value="57600">57600</option>
+          <option value="115200">115200</option>
+        </select>
+
+        <div class="btn-group">
+          <button id="btn-connect" class="btn btn-primary">Conectar</button>
+          <button id="btn-disconnect" class="btn btn-danger" disabled>Desconectar</button>
+        </div>
+      </section>
+
+      <!-- Enviar comando -->
+      <section class="card">
+        <h2 class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Enviar Comando
+        </h2>
+        <div class="send-row">
+          <input id="cmd-input" type="text" class="input" placeholder="ej: LED_ON" />
+          <button id="btn-send" class="btn btn-primary">Enviar</button>
+        </div>
+      </section>
+
+      <!-- Consola -->
+      <section class="card card-grow">
+        <div class="card-title-row">
+          <h2 class="card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            Consola
+          </h2>
+          <button id="btn-clear" class="btn btn-ghost btn-sm">Limpiar</button>
+        </div>
+        <div id="console-log" class="console"></div>
+      </section>
+
+    </aside>
+
+    <!-- Columna derecha: Métricas + Gráfica -->
+    <section class="dashboard">
+
+      <!-- Pantalla Principal de Distancia -->
+      <div class="card motion-alert-card" id="motion-alert-card" style="text-align: center; padding: 4rem 1rem; transition: all 0.3s ease;">
+        <div id="distance-display-main" style="font-size: 6rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: #63b3ed; line-height: 1; transition: all 0.2s ease;">
+          --<small style="font-size: 2rem; font-weight: 400; margin-left: 0.5rem; color: #4a5568;">cm</small>
+        </div>
+        <div id="motion-status-text" style="margin-top: 1.5rem; color: #718096; font-size: 1.2rem; font-weight: 500; text-transform: uppercase; letter-spacing: 2px;">
+          Sensor Activo
+        </div>
+        
+        <!-- Ocultamos el indicador pequeño anterior ya que ahora es central -->
+        <div id="distance-value" style="display: none;"></div>
+      </div>
+
+      <!-- Tabla de eventos recientes -->
+      <div class="card">
+        <h2 class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+          Movimientos Detectados Recientemente
+        </h2>
+        <div class="table-container" style="max-height: 250px; overflow-y: auto;">
+          <table style="width: 100%; text-align: left; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <th style="padding: 0.5rem;">#</th>
+                <th style="padding: 0.5rem;">Hora del Evento</th>
+                <th style="padding: 0.5rem;">Estado</th>
+              </tr>
+            </thead>
+            <tbody id="motion-log-table">
+              <tr><td colspan="3" style="text-align:center; padding: 1rem; color: #a0aec0;">Sin movimientos registrados en esta sesión.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Último dato JSON -->
+      <div class="card">
+        <h2 class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Último Paquete Recibido
+        </h2>
+        <pre id="json-display" class="json-view">Esperando datos...</pre>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- ── Scripts ──────────────────────────────────────────── -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
