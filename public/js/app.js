@@ -103,38 +103,53 @@ socket.on('serial:data', (packet) => {
   $jsonDisplay.textContent = JSON.stringify(packet, null, 2);
 
   const distance = data.value;
+  const motion = data.motion;
   const $mainDisplay = document.getElementById('distance-display-main');
   const $statusText  = document.getElementById('motion-status-text');
 
-  if (distance !== undefined && distance > 0 && $mainDisplay) {
-    const isClose = distance < 30 && distance > 0;
-
-    // Actualizar el número central siempre
-    $mainDisplay.innerHTML = `${distance}<small style="font-size: 2rem; font-weight: 400; margin-left: 0.5rem; color: ${isClose ? 'white' : '#4a5568'};">cm</small>`;
-
-    if (isClose) {
-      // Estado de Alerta: Fondo dinámico naranja/rojo y letras blancas
-      $motionAlertCard.style.backgroundColor = 'rgba(237, 137, 54, 0.8)';
-      $motionAlertCard.style.boxShadow = '0 0 40px rgba(237, 137, 54, 0.4)';
-      $mainDisplay.style.color = '#ffffff';
-      $mainDisplay.style.transform = 'scale(1.1)';
-      $statusText.textContent = '¡ALTO! OBJETO CERCA';
-      $statusText.style.color = '#ffffff';
-      
-      // Registrar en la tabla (solo si no estamos ya en racha para no saturar)
-      if (!alertTimeout) {
-        addMotionToLog(timestamp);
-      }
-
-      // Reset visual alert after a bit of silence
-      clearTimeout(alertTimeout);
-      alertTimeout = setTimeout(() => {
+  if ($mainDisplay) {
+    if (motion !== undefined) {
+      if (motion === 1) {
+        // En alerta
+        $mainDisplay.innerHTML = `MOVIMIENTO<small style="font-size: 1rem; font-weight: 400; margin-left: 0.5rem; color: white;">DETECTADO</small>`;
+        $motionAlertCard.style.backgroundColor = 'rgba(237, 137, 54, 0.8)';
+        $motionAlertCard.style.boxShadow = '0 0 40px rgba(237, 137, 54, 0.4)';
+        $mainDisplay.style.color = '#ffffff';
+        $mainDisplay.style.transform = 'scale(1.1)';
+        $statusText.textContent = '¡MOVIMIENTO DETECTADO!';
+        $statusText.style.color = '#ffffff';
+        
+        // Registrar alerta en la tabla, evitamos flood
+        if (!alertTimeout) {
+          addMotionToLog(timestamp);
+          alertTimeout = setTimeout(() => { alertTimeout = null; }, 3000); 
+        }
+      } else {
+        // Seguro (motion === 0)
+        $mainDisplay.innerHTML = `Seguro<small style="font-size: 1rem; font-weight: 400; margin-left: 0.5rem; color: #4a5568;">Sin mov.</small>`;
         resetUI();
-      }, 1000);
-
-    } else {
-      // Estado Normal
-      resetUI();
+      }
+    } 
+    // Fallback por si vuelve a usar el otro sensor
+    else if (distance !== undefined && distance > 0) {
+      const isClose = distance < 30;
+      $mainDisplay.innerHTML = `${distance}<small style="font-size: 2rem; font-weight: 400; margin-left: 0.5rem; color: ${isClose ? 'white' : '#4a5568'};">cm</small>`;
+      if (isClose) {
+        $motionAlertCard.style.backgroundColor = 'rgba(237, 137, 54, 0.8)';
+        $motionAlertCard.style.boxShadow = '0 0 40px rgba(237, 137, 54, 0.4)';
+        $mainDisplay.style.color = '#ffffff';
+        $mainDisplay.style.transform = 'scale(1.1)';
+        $statusText.textContent = '¡ALTO! OBJETO CERCA';
+        $statusText.style.color = '#ffffff';
+        
+        if (!alertTimeout) {
+          addMotionToLog(timestamp);
+        }
+        clearTimeout(alertTimeout);
+        alertTimeout = setTimeout(() => { resetUI(); }, 1000);
+      } else {
+        resetUI();
+      }
     }
   }
 

@@ -135,12 +135,14 @@ function connectSerial(portPath = PORT_SERIAL, baud = BAUD_RATE) {
     console.log('📡  Dato recibido:', packet);
     io.emit('serial:data', packet);
 
-    // Guardar en MySQL si la distancia es menor a 30cm (alguien se acerca)
-    if (payload && payload.value !== undefined && payload.value < 30 && payload.value > 0 && dbPool) {
+    // Guardar en MySQL si hay movimiento (PIR) o la distancia es menor a 30cm (Ultrasónico)
+    const isMotionDetected = (payload && payload.value !== undefined && payload.value < 30 && payload.value > 0) || (payload && payload.motion === 1);
+    
+    if (isMotionDetected && dbPool) {
       const table = process.env.DB_TABLE || 'movimientos';
       dbPool.query(`INSERT INTO \`${table}\` (detectado) VALUES (1)`)
       
-        .then(() => console.log('💾  Guardado en base de datos local (Proximidad detectada)'))
+        .then(() => console.log('💾  Guardado en base de datos local (PIR o Proximidad detectada)'))
         .catch(err => console.error('❌  Error al insertar en DB:', err.message));
     }
   });

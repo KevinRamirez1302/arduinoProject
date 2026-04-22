@@ -1,64 +1,44 @@
+const int PIR_PIN = 2;    // Pin conectado a "OUT" o "Data" del sensor PIR (cable verde en el dibujo)
+const int BUZZER_PIN = 8; // Pin conectado a tu Buzzer
 
-const int Trigger = 10;
-const int Echo    = 5;
-const int Buzzer  = 8;
-
-const int UMBRAL_CM      = 30;    // Activa el buzzer si objeto < 30cm
-const int DISTANCIA_MAX  = 400;   // El HC-SR04 llega máximo a ~400cm
-const long TIMEOUT_US    = 25000; // 25ms → ~425cm máximo, evita lecturas falsas
-const int SEND_INTERVAL  = 1000;  // Enviar cada 1 segundo
-
+int pirState = LOW; // Estado del sensor
 unsigned long lastSend = 0;
 
 void setup() {
   Serial.begin(9600);
-  pinMode(Trigger, OUTPUT);
-  pinMode(Echo,    INPUT);
-  pinMode(Buzzer,  OUTPUT);
-  digitalWrite(Trigger, LOW);
-  delay(500); // Pequeña pausa de estabilización
+  pinMode(PIR_PIN, INPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  // Pequeña pausa para estabilizar el sensor 
+  delay(1000); 
 }
 
 void loop() {
-  if (millis() - lastSend < SEND_INTERVAL) return;
-  lastSend = millis();
-
-  // Disparo del pulso ultrasónico
-  digitalWrite(Trigger, LOW);
-  delayMicroseconds(2);
-  digitalWrite(Trigger, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(Trigger, LOW);
-
-  // Leer eco con timeout (25ms caps ~425cm)
-  long t = pulseIn(Echo, HIGH, TIMEOUT_US);
-
-  // Si no hubo eco válido, no enviamos nada
-  if (t == 0) {
-    Serial.println(0);
-    return;
+  int pirValue = digitalRead(PIR_PIN);
+  
+  // Detección inicial
+  if (pirValue == HIGH && pirState == LOW) {
+    Serial.println("{\"motion\": 1}");
+    pirState = HIGH;
+    
+    // Activar Buzzer
+    tone(BUZZER_PIN, 1000); 
+    delay(500);             
+    noTone(BUZZER_PIN);
+    
+    lastSend = millis(); // reiniciamos el reloj para el envío continúo
+  } 
+  // Fin de detección
+  else if (pirValue == LOW && pirState == HIGH) {
+    Serial.println("{\"motion\": 0}");
+    pirState = LOW;
+    lastSend = millis();
   }
 
-  // Fórmula estándar HC-SR04: d(cm) = t(µs) / 58
-  long d = t / 58;
-
-  // Descartar lecturas fuera del rango físico del sensor
-  if (d > DISTANCIA_MAX) {
-    Serial.println(0);
-    return;
-  }
-
-  // Enviar distancia a la web
-  Serial.println(d);
-
-  // Buzzer: pita si objeto a menos de 30cm
-  if (d > 0 && d < UMBRAL_CM) {
-    // Usamos tone() para que funcione con cualquier tipo de buzzer
-    tone(Buzzer, 1000); // Emite un tono de 1000Hz
-    delay(100);         // Mantiene el tono 100ms
-    noTone(Buzzer);     // Apaga el tono
-  } else {
-    noTone(Buzzer);
+  // Enviar estado cada 1 segundo (así nunca se pierden los datos en la web y sabes que sigue funcionando)
+  if (millis() - lastSend >= 1000) {
+    Serial.print("{\"motion\": ");
+    Serial.print(pirState == HIGH ? 1 : 0);
+    Serial.println("}");
+    lastSend = millis();
   }
 }
-
